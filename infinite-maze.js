@@ -42,7 +42,7 @@ class InfiniteMaze {
             }*/
             if (Keys.keys.Shift && chunk.borderPath) {
                 this.ctx.lineWidth = 1;
-                this.ctx.strokeStyle = "lime";
+                this.ctx.strokeStyle = "rgba(0,255,0,0.8)";
                 this.ctx.lineJoin = "round";
                 this.ctx.beginPath();
                 for (let point of chunk.borderPath) {
@@ -50,6 +50,21 @@ class InfiniteMaze {
                 }
                 this.ctx.closePath();
                 this.ctx.stroke();
+            }
+            if (Keys.keys.Shift) {
+                this.ctx.font = "bold 1px Arial";
+                let width = this.ctx.measureText(chunk.id).width;
+                let size = Math.max(1, Math.min(chunk.h - 2, (chunk.w - 2) / width) / 2);
+                this.ctx.font = `bold ${size}px Arial`;
+                this.ctx.lineWidth = size / 10;
+
+                this.ctx.fillStyle = "black";
+                this.ctx.strokeStyle = "white";
+                this.ctx.lineJoin = "round";
+                this.ctx.textAlign = "center";
+                this.ctx.textBaseline = "middle";
+                this.ctx.strokeText(chunk.id, chunk.w / 2, chunk.h / 2);
+                this.ctx.fillText(chunk.id, chunk.w / 2, chunk.h / 2);
             }
 
             this.ctx.restore();
@@ -76,7 +91,7 @@ class InfiniteMaze {
                 this.addChunk(event.data);
             } else if (event.data.type == "chunk data ready") {
                 this.addChunkData(event.data);
-            } else if(event.data.type == "chunk image ready") {
+            } else if (event.data.type == "chunk image ready") {
                 this.addChunkImage(event.data);
             }
         }
