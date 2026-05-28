@@ -72,7 +72,6 @@ class ChunkHandler {
         this.chunks = chunks;
     }
     renderViewport(viewport) {
-        console.log("render viewport");
         this.lastViewport = viewport;
 
         let MAX_CHUNKS = this.mazeHandler.workers.length - this.mazeHandler.renderQueue.length;
@@ -81,17 +80,39 @@ class ChunkHandler {
         let mask = this.getCoverBitMask(x, y, w, h);
 
         let chunkCreateCount = 0;
-        for (let localY = 0; localY < h; localY++) {
-            for (let localX = 0; localX < w; localX++) {
-                if (mask.get(localX, localY)) continue;
-                let globalX = localX + x;
-                let globalY = localY + y;
-                let chunk = this.createChunk(globalX, globalY);
-                this.coverMask(mask, x, y, w, h, chunk);
-                chunkCreateCount++;
-                if (chunkCreateCount >= MAX_CHUNKS) break;
-            }
+        for (let [localX, localY] of this.generateRingCoordinates(w, h)) {
+            if (mask.get(localX, localY)) continue;
+            let globalX = localX + x;
+            let globalY = localY + y;
+            let chunk = this.createChunk(globalX, globalY);
+            this.coverMask(mask, x, y, w, h, chunk);
+            chunkCreateCount++;
             if (chunkCreateCount >= MAX_CHUNKS) break;
+        }
+    }
+    *generateRingCoordinates(w, h) {
+        let rings = Math.ceil(Math.max(w, h) / 2);
+        let cx = Math.floor(w / 4) * 2;
+        let cy = Math.floor(h / 4) * 2;
+        // cx and cy nearest multiple of 2
+
+        yield[cx, cy];
+
+        for (let ring = 1; ring < rings; ring += 2) {
+            // rings are multiple of 2
+            for (let n = -ring; n <= ring; n += 2) {
+                let coordinates = [
+                    { x: cx + n - 1, y: cy - ring - 1 },
+                    { x: cx + n - 1, y: cy + ring - 1 },
+                    { x: cx - ring - 1, y: cy + n - 1 },
+                    { x: cx + ring - 1, y: cy + n - 1 }
+                ];
+                for (let coordinate of coordinates) {
+                    if (coordinate.x >= 0 && coordinate.y >= 0 && coordinate.x < w && coordinate.y < h) {
+                        yield[coordinate.x, coordinate.y];
+                    }
+                }
+            }
         }
     }
     createChunk(x, y) {
