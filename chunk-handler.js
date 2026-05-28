@@ -1,0 +1,342 @@
+importScripts("bitmask.js");
+
+class RenderHandler {
+    constructor() {
+        this.renderQueue = [];
+
+        this.workers = [];
+        for (let n = 0; n < Math.max(navigator.hardwareConcurrency - 3, 1); n++) {
+            let worker = new Worker("render.js");
+            worker.busy = false;
+            worker.chunkId = null;
+            worker.onmessage = event => {
+                if (event.data.type == "render maze finished") {
+                    postMessage({
+                        type: "chunk bitmap ready",
+                        bitmap: event.data.bitmap,
+                        id: worker.chunkId
+                    });
+
+                    if (this.renderQueue.length) {
+                        let chunk = this.renderQueue.pop();
+                        worker.postMessage({
+                            type: "render maze",
+                            maze: { w: chunk.maze.w, h: chunk.maze.h, data: chunk.maze.data }
+                        });
+                        worker.chunkId = chunk.id;
+                        worker.busy = true;
+                    } else {
+                        worker.busy = false;
+                    }
+                }
+            }
+            this.workers.push(worker);
+        }
+    }
+    render(chunk) {
+        let freeWorker = this.workers.find(e => !e.busy);
+        if (freeWorker) {
+            freeWorker.postMessage({
+                type: "render maze",
+                maze: { w: chunk.maze.w, h: chunk.maze.h, data: chunk.maze.data }
+            });
+            freeWorker.chunkId = chunk.id;
+            freeWorker.busy = true;
+        } else {
+            this.renderQueue.push(chunk);
+        }
+    }
+}
+
+class ChunkHandler {
+    constructor() {
+        this.chunkId = 0;
+        this.renderHandler = new RenderHandler();
+    }
+    initializeChunks(chunks) {
+        this.chunks = chunks;
+    }
+    renderViewport(viewport) {
+        let { x, y, w, h } = this.roundViewport(viewport);
+        let mask = this.getCoverBitMask(x, y, w, h);
+        for (let localY = 0; localY < h; localY++) {
+            for (let localX = 0; localX < w; localX++) {
+                if (mask.get(localX, localY)) continue;
+                let globalX = localX + x;
+                let globalY = localY + y;
+                let chunk = this.createChunk(globalX, globalY);
+                this.coverMask(mask, x, y, w, h, chunk);
+            }
+        }
+    }
+    createChunk(x, y) {
+        let { mask, chunkX, chunkY, chunkW, chunkH } = this.createNewChunkMask(x, y);
+        mask = this.fillMaskHoles(mask);
+        let { borderMask, borderPath } = this.detectBorders(mask);
+        let maze = this.generateMaze(mask);
+        maze = this.addBorderHole(maze, borderPath);
+        let chunk = { x: chunkX, y: chunkY, w: chunkW, h: chunkH, mask, id: this.chunkId++, maze, borderMask, borderPath };
+        this.chunks.push(chunk);
+
+        postMessage({
+            type: "new chunk",
+            ...chunk
+        });
+
+        this.renderHandler.render(chunk);
+        return chunk;
+    }
+    roundViewport({ x1, y1, x2, y2 }) {
+        x1 = Math.floor(x1 / 2) * 2;
+        y1 = Math.floor(y1 / 2) * 2;
+        x2 = Math.ceil(x2 / 2) * 2;
+        y2 = Math.ceil(y2 / 2) * 2;
+        let x = x1;
+        let y = y1;
+        let w = x2 - x1;
+        let h = y2 - y1;
+        return { x1, x2, y1, y2, x, y, w, h };
+        // Expand viewport to nearest multiple of 2
+    }
+    getCoverBitMask(x, y, w, h) {
+        let mask = new BitMask(w, h);
+        for (let chunk of this.chunks) {
+            if (chunk.x >= x + w) continue;
+            if (chunk.y >= y + h) continue;
+            if (chunk.x + chunk.w <= x) continue;
+            if (chunk.y + chunk.h <= y) continue;
+            this.coverMask(mask, x, y, w, h, chunk);
+        }
+        return mask;
+    }
+    coverMask(mask, maskX, maskY, maskW, maskH, chunk) {
+        for (let localX = 0; localX < chunk.w; localX++) {
+            for (let localY = 0; localY < chunk.h; localY++) {
+                if (!chunk.mask.get(localX, localY)) continue;
+                if (localX + chunk.x < maskX) continue;
+                if (localY + chunk.y < maskY) continue;
+                if (localX + chunk.x >= maskX + maskW) continue;
+                if (localY + chunk.y >= maskY + maskH) continue;
+                mask.set(localX + chunk.x - maskX, localY + chunk.y - maskY);
+            }
+        }
+    }
+    isCovered(x, y) {
+        for (let chunk of this.chunks) {
+            if (chunk.x > x) continue;
+            if (chunk.y > y) continue;
+            if (chunk.x + chunk.w <= x) continue;
+            if (chunk.y + chunk.h <= y) continue;
+            if (!chunk.mask.get(x - chunk.x, y - chunk.y)) continue;
+            return true;
+        }
+        return false;
+    }
+    createNewChunkMask(x, y) {
+        const CHUNK_SIZE = 1000;
+
+        let nodes = [{ x, y }];
+        let searched = [];
+        while (nodes.length && searched.length < CHUNK_SIZE) {
+            let index = Math.floor(Math.random() * nodes.length);
+            let node = nodes.splice(index, 1)[0];
+            searched.push(node);
+            let neighbors = [{ x: -2, y: 0 }, { x: 2, y: 0 }, { x: 0, y: -2 }, { x: 0, y: 2 }]
+                .map(e => ({ x: e.x + node.x, y: e.y + node.y }))
+                .filter(e => !nodes.some(f => f.x == e.x && f.y == e.y))
+                .filter(e => !searched.some(f => f.x == e.x && f.y == e.y))
+                .filter(e => !this.isCovered(e.x, e.y));
+            nodes.push(...neighbors);
+        }
+        for (let n = 0; n < nodes.length; n++) {
+            let node = nodes[n];
+            let neighborCount = [{ x: -2, y: 0 }, { x: 2, y: 0 }, { x: 0, y: -2 }, { x: 0, y: 2 }]
+                .map(e => ({ x: e.x + node.x, y: e.y + node.y }))
+                .filter(e => searched.some(f => f.x == e.x && f.y == e.y) || this.isCovered(e.x, e.y))
+                .length;
+            if (neighborCount > 2) {
+                searched.push(node);
+                nodes.splice(n, 1);
+                n--;
+            }
+        }
+        let x1 = Math.min(...searched.map(e => e.x));
+        let y1 = Math.min(...searched.map(e => e.y));
+        let x2 = Math.max(...searched.map(e => e.x));
+        let y2 = Math.max(...searched.map(e => e.y));
+
+        let chunkX = x1;
+        let chunkY = y1;
+        let chunkW = x2 - x1 + 2;
+        let chunkH = y2 - y1 + 2;
+        let mask = new BitMask(chunkW, chunkH);
+        for (let localX = 0; localX < chunkW; localX++) {
+            for (let localY = 0; localY < chunkH; localY++) {
+                if (!searched.some(e => e.x == localX + chunkX && e.y == localY + chunkY)) continue;
+                mask.set(localX, localY);
+                mask.set(localX + 1, localY);
+                mask.set(localX, localY + 1);
+                mask.set(localX + 1, localY + 1);
+            }
+        }
+        return { mask, chunkX, chunkY, chunkW, chunkH };
+    }
+    fillMaskHoles(mask) {
+        let nodes = [];
+        for (let x = 0; x < mask.w; x++) {
+            nodes.push({ x, y: 0 });
+            nodes.push({ x, y: mask.h - 1 });
+        }
+        for (let y = 0; y < mask.h; y++) {
+            nodes.push({ x: 0, y });
+            nodes.push({ x: mask.w - 1, y });
+        }
+        let searched = new BitMask(mask.w, mask.h);
+        while (nodes.length > 0) {
+            let node = nodes.pop();
+            if (mask.get(node.x, node.y)) continue;
+            searched.set(node.x, node.y);
+            let neighbors = [{ x: -1, y: 0 }, { x: 1, y: 0 }, { x: 0, y: -1 }, { x: 0, y: 1 }]
+                .map(e => ({ x: e.x + node.x, y: e.y + node.y }))
+                .filter(e => e.x >= 0 && e.y >= 0 && e.x < mask.w && e.y < mask.h)
+                .filter(e => !nodes.some(f => f.x == e.x && f.y == e.y))
+                .filter(e => !searched.get(e.x, e.y))
+                .filter(e => !mask.get(e.x, e.y));
+            nodes.push(...neighbors);
+        }
+        for (let x = 0; x < mask.w; x++) {
+            for (let y = 0; y < mask.h; y++) {
+                if (mask.get(x, y)) continue;
+                if (searched.get(x, y)) continue;
+                mask.set(x, y);
+            }
+        }
+        return mask;
+    }
+    detectBorders(mask) {
+        let directions = [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }, { x: 0, y: -1 }];
+        // directions ordered clockwise
+
+        let direction = { x: 1, y: 0 };
+        let currentNode = this.findFirstNode(mask);
+        // start at topmost node in column 0
+
+        let borderPath = [structuredClone(currentNode)];
+        let borderMask = new BitMask(mask.w, mask.h);
+
+        let iteration = 0;
+        while (iteration == 0 || !(currentNode.x == borderPath[0].x && currentNode.y == borderPath[0].y)) {
+            // iterate until path is closed again
+
+            borderMask.set(currentNode.x, currentNode.y);
+
+            let directionIndex = directions.findIndex(e => e.x == direction.x && e.y == direction.y);
+            let newDirectionIndex = directionIndex;
+            let x = currentNode.x + direction.x;
+            let y = currentNode.y + direction.y;
+            if (x >= mask.w || y >= mask.h || x < 0 || y < 0 || !mask.get(x, y)) {
+                newDirectionIndex++;
+                newDirectionIndex %= directions.length;
+                // rotate clockwise if going to go out of bounds or into empty cell
+            }
+            let counterClockwiseDirection = directions[(directionIndex - 1 + directions.length) % directions.length];
+            let ccx = currentNode.x + counterClockwiseDirection.x;
+            let ccy = currentNode.y + counterClockwiseDirection.y;
+            if (ccx < mask.w && ccy < mask.h && ccx >= 0 && ccy >= 0 && mask.get(ccx, ccy)) {
+                newDirectionIndex--;
+                newDirectionIndex += directions.length;
+                newDirectionIndex %= directions.length;
+                // rotate counter clockwise if that direction has a filled cell
+            }
+            if (newDirectionIndex != directionIndex) {
+                directionIndex = newDirectionIndex;
+                borderPath.push(structuredClone(currentNode));
+                // if rotating, add a path node
+            }
+            direction = directions[directionIndex];
+
+            currentNode.x += direction.x;
+            currentNode.y += direction.y;
+
+            iteration++;
+        }
+
+        return { borderMask, borderPath };
+    }
+    generateMaze(mask) {
+        let maze = mask.copy();
+        let nodes = [this.findFirstNode(mask)];
+        while (nodes.length > 0) {
+            let index = Math.floor(Math.random() * nodes.length);
+            let node = nodes.splice(index, 1)[0];
+            maze.clear(node.x, node.y);
+            if (node.parent) {
+                let avgX = Math.round((node.x + node.parent.x) / 2);
+                let avgY = Math.round((node.y + node.parent.y) / 2);
+                maze.clear(avgX, avgY);
+            }
+            let neighbors = [{ x: -2, y: 0 }, { x: 2, y: 0 }, { x: 0, y: -2 }, { x: 0, y: 2 }]
+                .map(e => ({ x: e.x + node.x, y: e.y + node.y, parent: node }))
+                .filter(e => e.x >= 0 && e.y >= 0 && e.x < mask.w && e.y < mask.h)
+                .filter(e => !nodes.some(f => f.x == e.x && f.y == e.y))
+                .filter(e => maze.get(e.x, e.y))
+                .filter(e => mask.get(e.x, e.y));
+            nodes.push(...neighbors);
+        }
+        return maze;
+    }
+    addBorderHole(maze, borderPath) {
+        // add a hole to one East border and one South border to ensure all chunks are connected
+
+        let eastBorders = [];
+        let southBorders = [];
+        for (let n = 0; n < borderPath.length; n++) {
+            let start = borderPath[n];
+            let end = borderPath[(n + 1) % borderPath.length];
+            if (start.x == end.x && start.y > end.y) continue; // skip West borders
+            if (start.y == end.y && start.x < end.x) continue; // skip South borders
+            eastBorders.push({ start, end });
+            southBorders.push({ start, end });
+        }
+
+        for (let borders of [eastBorders, southBorders]) {
+            let { start, end } = borders[Math.floor(Math.random() * borders.length)];
+            let x, y;
+            if (start.x == end.x) { // East border
+                x = start.x;
+                let minY = Math.ceil(start.y / 2) * 2;
+                let maxY = Math.floor((end.y - 1) / 2) * 2;
+                let range = (maxY - minY) / 2;
+                y = Math.floor(Math.random() * range) * 2 + minY;
+            } else { // South border
+                y = start.y;
+                let minX = Math.ceil(end.x / 2) * 2;
+                let maxX = Math.floor((start.x - 1) / 2) * 2;
+                let range = (maxX - minX) / 2;
+                x = Math.floor(Math.random() * range) * 2 + minX;
+            }
+            maze.clear(x, y);
+        }
+
+        return maze;
+    }
+    findFirstNode(mask) {
+        for (let x = 0; x < mask.w; x++) {
+            for (let y = 0; y < mask.h; y++) {
+                if (!mask.get(x, y)) continue;
+                return { x, y };
+            }
+        }
+    }
+}
+
+let chunkHandler = new ChunkHandler();
+
+onmessage = event => {
+    if (event.data.type == "initialize chunks") {
+        chunkHandler.initializeChunks(event.data.chunks);
+    }
+    if (event.data.type == "render viewport") {
+        chunkHandler.renderViewport(event.data.viewport);
+    }
+}
