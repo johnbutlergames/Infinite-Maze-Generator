@@ -38,7 +38,6 @@ class Cam {
     updateScroll() {
         if (!this.mouse.scrollY) return;
         let scaleFactor = Math.max(Math.min(1 - this.mouse.scrollY * 0.002, 2), 0.5);
-        if (Keys.keys.Control) scaleFactor = Math.max(Math.min(1 - this.mouse.scrollY * 0.0002, 2), 0.5);
         let oldZoom = this.zoom;
         let newZoom = this.zoom * scaleFactor;
         newZoom = Math.min(Math.max(newZoom, Cam.MIN_ZOOM), Cam.MAX_ZOOM);

@@ -6,6 +6,10 @@ class InfiniteMaze {
         this.chunks = [];
         this.initializeChunks();
         this.needUpdate = true;
+
+        this.showChunkBorders = true;
+        this.showChunkColors = false;
+        this.showChunkIds = false;
     }
     update() {
         this.chunkHandler.postMessage({
@@ -34,18 +38,16 @@ class InfiniteMaze {
                 this.ctx.drawImage(chunk.bitmap, 0, 0, chunk.w, chunk.h);
             }
 
-            /*for (let y = 0; y < chunk.h; y++) {
-                for (let x = 0; x < chunk.w; x++) {
-                    if (!chunk.mask[y][x]) continue;
-                    //this.ctx.fillStyle = `hsla(${chunk.id * 10},100%,${chunk.id % (36 * 2) < 36 ? 60 : 20}%,0.1)`;
-                    //this.ctx.fillRect(x, y, 1, 1);
-                    if (chunk.maze[y][x]) {
-                        this.ctx.fillStyle = `rgba(0,0,0,0.5)`;
-                        this.ctx.fillRect(x, y, 1, 1);
-                    }
+            if (this.showChunkColors && chunk.borderPath) {
+                this.ctx.fillStyle = `hsla(${chunk.id * 10},100%,${chunk.id % (36 * 2) < 36 ? 60 : 20}%,0.3)`;
+                this.ctx.beginPath();
+                for (let point of chunk.borderPath) {
+                    this.ctx.lineTo(point.x + 0.5, point.y + 0.5);
                 }
-            }*/
-            if (Keys.keys.Shift && chunk.borderPath) {
+                this.ctx.closePath();
+                this.ctx.fill();
+            }
+            if (this.showChunkBorders && chunk.borderPath) {
                 this.ctx.lineWidth = 1;
                 this.ctx.strokeStyle = "rgba(0,255,0,0.8)";
                 this.ctx.lineJoin = "round";
@@ -56,7 +58,7 @@ class InfiniteMaze {
                 this.ctx.closePath();
                 this.ctx.stroke();
             }
-            if (Keys.keys.Shift) {
+            if (this.showChunkIds) {
                 this.ctx.font = "bold 1px Arial";
                 let width = this.ctx.measureText(chunk.id).width;
                 let size = Math.max(1, Math.min(chunk.h - 2, (chunk.w - 2) / width) / 2);
@@ -101,16 +103,18 @@ class InfiniteMaze {
             }
         }
     }
-    addChunk({ x, y, w, h, id, mask, maze, borderMask, borderPath }) {
-        this.chunks.push({ x, y, w, h, id, mask, maze, borderMask, borderPath });
+    addChunk({ x, y, w, h, id }) {
+        this.chunks.push({ x, y, w, h, id });
         this.needUpdate = true;
     }
     addChunkData(data) {
-        this.chunks.find(e => e.id == data.id).borderPath = data.borderPath;
+        let chunk = this.chunks.find(e => e.id == data.id);
+        chunk.borderPath = data.borderPath;
         this.needUpdate = true;
     }
     addChunkImage(data) {
-        this.chunks.find(e => e.id == data.id).bitmap = data.bitmap;
+        let chunk = this.chunks.find(e => e.id == data.id);
+        chunk.bitmap = data.bitmap;
         this.needUpdate = true;
     }
 }

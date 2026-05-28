@@ -81,13 +81,13 @@ class ChunkHandler {
 
         let chunkCreateCount = 0;
         for (let [localX, localY] of this.generateRingCoordinates(w, h)) {
+            if (chunkCreateCount >= MAX_CHUNKS) break;
             if (mask.get(localX, localY)) continue;
             let globalX = localX + x;
             let globalY = localY + y;
             let chunk = this.createChunk(globalX, globalY);
             this.coverMask(mask, x, y, w, h, chunk);
             chunkCreateCount++;
-            if (chunkCreateCount >= MAX_CHUNKS) break;
         }
     }
     *generateRingCoordinates(w, h) {
@@ -96,7 +96,7 @@ class ChunkHandler {
         let cy = Math.floor(h / 4) * 2;
         // cx and cy nearest multiple of 2
 
-        yield[cx, cy];
+        yield [cx, cy];
 
         for (let ring = 1; ring < rings; ring += 2) {
             // rings are multiple of 2
@@ -109,7 +109,7 @@ class ChunkHandler {
                 ];
                 for (let coordinate of coordinates) {
                     if (coordinate.x >= 0 && coordinate.y >= 0 && coordinate.x < w && coordinate.y < h) {
-                        yield[coordinate.x, coordinate.y];
+                        yield [coordinate.x, coordinate.y];
                     }
                 }
             }
@@ -123,7 +123,12 @@ class ChunkHandler {
 
         postMessage({
             type: "new chunk",
-            ...chunk
+            x: chunk.x,
+            y: chunk.y,
+            w: chunk.w,
+            h: chunk.h,
+            mask: chunk.mask.toData(),
+            id: chunk.id
         });
 
         this.mazeHandler.renderMaze(chunk);
