@@ -35,6 +35,9 @@ class MazeHandler {
                         this.giveFreeWorkerRenderTask(worker, chunk);
                     } else {
                         worker.busy = false;
+                        if (this.chunkHandler.chunks.every(e => e.bitmap)) {
+                            this.chunkHandler.renderViewport(this.chunkHandler.lastViewport);
+                        }
                     }
                 }
             }
@@ -63,13 +66,21 @@ class ChunkHandler {
     constructor() {
         this.chunkId = 0;
         this.mazeHandler = new MazeHandler(this);
+        this.lastViewport = null;
     }
     initializeChunks(chunks) {
         this.chunks = chunks;
     }
     renderViewport(viewport) {
+        console.log("render viewport");
+        this.lastViewport = viewport;
+
+        let MAX_CHUNKS = this.mazeHandler.workers.length - this.mazeHandler.renderQueue.length;
+
         let { x, y, w, h } = this.roundViewport(viewport);
         let mask = this.getCoverBitMask(x, y, w, h);
+
+        let chunkCreateCount = 0;
         for (let localY = 0; localY < h; localY++) {
             for (let localX = 0; localX < w; localX++) {
                 if (mask.get(localX, localY)) continue;
@@ -77,7 +88,10 @@ class ChunkHandler {
                 let globalY = localY + y;
                 let chunk = this.createChunk(globalX, globalY);
                 this.coverMask(mask, x, y, w, h, chunk);
+                chunkCreateCount++;
+                if (chunkCreateCount >= MAX_CHUNKS) break;
             }
+            if (chunkCreateCount >= MAX_CHUNKS) break;
         }
     }
     createChunk(x, y) {
