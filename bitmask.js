@@ -34,4 +34,12 @@ class BitMask {
         mask.data = structuredClone(this.data);
         return mask;
     }
+    toData() {
+        return { w: this.w, h: this.h, data: this.data };
+    }
+    static fromData(mask) {
+        let bitmask = new BitMask(mask.w, mask.h);
+        bitmask.data = mask.data;
+        return bitmask;
+    }
 }

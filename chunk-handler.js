@@ -1,30 +1,38 @@
 importScripts("bitmask.js");
 
-class RenderHandler {
-    constructor() {
+class MazeHandler {
+    constructor(chunkHandler) {
+        this.chunkHandler = chunkHandler;
         this.renderQueue = [];
 
         this.workers = [];
         for (let n = 0; n < Math.max(navigator.hardwareConcurrency - 3, 1); n++) {
-            let worker = new Worker("render.js");
+            let worker = new Worker("maze.js");
             worker.busy = false;
             worker.chunkId = null;
             worker.onmessage = event => {
-                if (event.data.type == "render maze finished") {
+                if (event.data.type == "maze generated") {
                     postMessage({
-                        type: "chunk bitmap ready",
+                        type: "chunk data ready",
+                        borderPath: event.data.borderPath,
+                        borderMask: event.data.borderMask,
+                        maze: event.data.maze,
+                        id: worker.chunkId
+                    });
+                    let chunk = this.chunkHandler.chunks.find(e => e.id == worker.chunkId);
+                    chunk.borderPath = event.data.borderPath;
+                    chunk.borderMask = BitMask.fromData(event.data.borderMask);
+                    chunk.maze = BitMask.fromData(event.data.maze);
+                } else if (event.data.type == "maze rendered") {
+                    postMessage({
+                        type: "chunk image ready",
                         bitmap: event.data.bitmap,
                         id: worker.chunkId
                     });
 
                     if (this.renderQueue.length) {
-                        let chunk = this.renderQueue.pop();
-                        worker.postMessage({
-                            type: "render maze",
-                            maze: { w: chunk.maze.w, h: chunk.maze.h, data: chunk.maze.data }
-                        });
-                        worker.chunkId = chunk.id;
-                        worker.busy = true;
+                        let chunk = this.renderQueue.shift();
+                        this.giveFreeWorkerRenderTask(worker, chunk);
                     } else {
                         worker.busy = false;
                     }
@@ -33,25 +41,28 @@ class RenderHandler {
             this.workers.push(worker);
         }
     }
-    render(chunk) {
+    renderMaze(chunk) {
         let freeWorker = this.workers.find(e => !e.busy);
         if (freeWorker) {
-            freeWorker.postMessage({
-                type: "render maze",
-                maze: { w: chunk.maze.w, h: chunk.maze.h, data: chunk.maze.data }
-            });
-            freeWorker.chunkId = chunk.id;
-            freeWorker.busy = true;
+            this.giveFreeWorkerRenderTask(freeWorker, chunk);
         } else {
             this.renderQueue.push(chunk);
         }
+    }
+    giveFreeWorkerRenderTask(worker, chunk) {
+        worker.postMessage({
+            type: "create maze",
+            mask: chunk.mask.toData()
+        });
+        worker.busy = true;
+        worker.chunkId = chunk.id;
     }
 }
 
 class ChunkHandler {
     constructor() {
         this.chunkId = 0;
-        this.renderHandler = new RenderHandler();
+        this.mazeHandler = new MazeHandler(this);
     }
     initializeChunks(chunks) {
         this.chunks = chunks;
@@ -72,10 +83,7 @@ class ChunkHandler {
     createChunk(x, y) {
         let { mask, chunkX, chunkY, chunkW, chunkH } = this.createNewChunkMask(x, y);
         mask = this.fillMaskHoles(mask);
-        let { borderMask, borderPath } = this.detectBorders(mask);
-        let maze = this.generateMaze(mask);
-        maze = this.addBorderHole(maze, borderPath);
-        let chunk = { x: chunkX, y: chunkY, w: chunkW, h: chunkH, mask, id: this.chunkId++, maze, borderMask, borderPath };
+        let chunk = { x: chunkX, y: chunkY, w: chunkW, h: chunkH, mask, id: this.chunkId++ };
         this.chunks.push(chunk);
 
         postMessage({
@@ -83,7 +91,8 @@ class ChunkHandler {
             ...chunk
         });
 
-        this.renderHandler.render(chunk);
+        this.mazeHandler.renderMaze(chunk);
+
         return chunk;
     }
     roundViewport({ x1, y1, x2, y2 }) {
@@ -212,121 +221,6 @@ class ChunkHandler {
             }
         }
         return mask;
-    }
-    detectBorders(mask) {
-        let directions = [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }, { x: 0, y: -1 }];
-        // directions ordered clockwise
-
-        let direction = { x: 1, y: 0 };
-        let currentNode = this.findFirstNode(mask);
-        // start at topmost node in column 0
-
-        let borderPath = [structuredClone(currentNode)];
-        let borderMask = new BitMask(mask.w, mask.h);
-
-        let iteration = 0;
-        while (iteration == 0 || !(currentNode.x == borderPath[0].x && currentNode.y == borderPath[0].y)) {
-            // iterate until path is closed again
-
-            borderMask.set(currentNode.x, currentNode.y);
-
-            let directionIndex = directions.findIndex(e => e.x == direction.x && e.y == direction.y);
-            let newDirectionIndex = directionIndex;
-            let x = currentNode.x + direction.x;
-            let y = currentNode.y + direction.y;
-            if (x >= mask.w || y >= mask.h || x < 0 || y < 0 || !mask.get(x, y)) {
-                newDirectionIndex++;
-                newDirectionIndex %= directions.length;
-                // rotate clockwise if going to go out of bounds or into empty cell
-            }
-            let counterClockwiseDirection = directions[(directionIndex - 1 + directions.length) % directions.length];
-            let ccx = currentNode.x + counterClockwiseDirection.x;
-            let ccy = currentNode.y + counterClockwiseDirection.y;
-            if (ccx < mask.w && ccy < mask.h && ccx >= 0 && ccy >= 0 && mask.get(ccx, ccy)) {
-                newDirectionIndex--;
-                newDirectionIndex += directions.length;
-                newDirectionIndex %= directions.length;
-                // rotate counter clockwise if that direction has a filled cell
-            }
-            if (newDirectionIndex != directionIndex) {
-                directionIndex = newDirectionIndex;
-                borderPath.push(structuredClone(currentNode));
-                // if rotating, add a path node
-            }
-            direction = directions[directionIndex];
-
-            currentNode.x += direction.x;
-            currentNode.y += direction.y;
-
-            iteration++;
-        }
-
-        return { borderMask, borderPath };
-    }
-    generateMaze(mask) {
-        let maze = mask.copy();
-        let nodes = [this.findFirstNode(mask)];
-        while (nodes.length > 0) {
-            let index = Math.floor(Math.random() * nodes.length);
-            let node = nodes.splice(index, 1)[0];
-            maze.clear(node.x, node.y);
-            if (node.parent) {
-                let avgX = Math.round((node.x + node.parent.x) / 2);
-                let avgY = Math.round((node.y + node.parent.y) / 2);
-                maze.clear(avgX, avgY);
-            }
-            let neighbors = [{ x: -2, y: 0 }, { x: 2, y: 0 }, { x: 0, y: -2 }, { x: 0, y: 2 }]
-                .map(e => ({ x: e.x + node.x, y: e.y + node.y, parent: node }))
-                .filter(e => e.x >= 0 && e.y >= 0 && e.x < mask.w && e.y < mask.h)
-                .filter(e => !nodes.some(f => f.x == e.x && f.y == e.y))
-                .filter(e => maze.get(e.x, e.y))
-                .filter(e => mask.get(e.x, e.y));
-            nodes.push(...neighbors);
-        }
-        return maze;
-    }
-    addBorderHole(maze, borderPath) {
-        // add a hole to one East border and one South border to ensure all chunks are connected
-
-        let eastBorders = [];
-        let southBorders = [];
-        for (let n = 0; n < borderPath.length; n++) {
-            let start = borderPath[n];
-            let end = borderPath[(n + 1) % borderPath.length];
-            if (start.x == end.x && start.y > end.y) continue; // skip West borders
-            if (start.y == end.y && start.x < end.x) continue; // skip South borders
-            eastBorders.push({ start, end });
-            southBorders.push({ start, end });
-        }
-
-        for (let borders of [eastBorders, southBorders]) {
-            let { start, end } = borders[Math.floor(Math.random() * borders.length)];
-            let x, y;
-            if (start.x == end.x) { // East border
-                x = start.x;
-                let minY = Math.ceil(start.y / 2) * 2;
-                let maxY = Math.floor((end.y - 1) / 2) * 2;
-                let range = (maxY - minY) / 2;
-                y = Math.floor(Math.random() * range) * 2 + minY;
-            } else { // South border
-                y = start.y;
-                let minX = Math.ceil(end.x / 2) * 2;
-                let maxX = Math.floor((start.x - 1) / 2) * 2;
-                let range = (maxX - minX) / 2;
-                x = Math.floor(Math.random() * range) * 2 + minX;
-            }
-            maze.clear(x, y);
-        }
-
-        return maze;
-    }
-    findFirstNode(mask) {
-        for (let x = 0; x < mask.w; x++) {
-            for (let y = 0; y < mask.h; y++) {
-                if (!mask.get(x, y)) continue;
-                return { x, y };
-            }
-        }
     }
 }
 

@@ -40,7 +40,7 @@ class InfiniteMaze {
                     }
                 }
             }*/
-            if (Keys.keys.Shift) {
+            if (Keys.keys.Shift && chunk.borderPath) {
                 this.ctx.lineWidth = 1;
                 this.ctx.strokeStyle = "lime";
                 this.ctx.lineJoin = "round";
@@ -74,13 +74,19 @@ class InfiniteMaze {
         this.chunkHandler.onmessage = event => {
             if (event.data.type == "new chunk") {
                 this.addChunk(event.data);
-            } else if (event.data.type == "chunk bitmap ready") {
+            } else if (event.data.type == "chunk data ready") {
+                this.addChunkData(event.data);
+            } else if(event.data.type == "chunk image ready") {
                 this.addChunkImage(event.data);
             }
         }
     }
     addChunk({ x, y, w, h, id, mask, maze, borderMask, borderPath }) {
         this.chunks.push({ x, y, w, h, id, mask, maze, borderMask, borderPath });
+        this.needUpdate = true;
+    }
+    addChunkData(data) {
+        this.chunks.find(e => e.id == data.id).borderPath = data.borderPath;
         this.needUpdate = true;
     }
     addChunkImage(data) {
