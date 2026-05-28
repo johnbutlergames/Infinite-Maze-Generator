@@ -19,6 +19,11 @@ class InfiniteMaze {
         this.cam.alignViewport();
 
         for (let chunk of this.chunks) {
+            this.ctx.fillStyle = "rgb(210,210,210)";
+            this.ctx.fillRect(chunk.x, chunk.y, chunk.w, chunk.h);
+        }
+
+        for (let chunk of this.chunks) {
             if (!this.chunkInViewport(chunk)) continue;
 
             this.ctx.save();

@@ -142,7 +142,7 @@ class ChunkHandler {
         return false;
     }
     createNewChunkMask(x, y) {
-        const CHUNK_SIZE = 1000;
+        let CHUNK_SIZE = 500 + Math.random() * 2000;
 
         let nodes = [{ x, y }];
         let searched = [];
