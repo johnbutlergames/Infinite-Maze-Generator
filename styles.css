@@ -12,6 +12,10 @@ body {
     margin: 0;
 }
 
+canvas {
+    position: absolute;
+}
+
 #ui-container {
     position: absolute;
     z-index: 1000;

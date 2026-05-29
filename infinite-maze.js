@@ -1,10 +1,12 @@
 class InfiniteMaze {
-    constructor(canvas, ctx, cam) {
+    constructor(canvas, ctx, cam, pathfindCanvas) {
+        this.pathfindCanvas = pathfindCanvas;
         this.canvas = canvas;
         this.ctx = ctx;
         this.cam = cam;
         this.chunks = [];
         this.initializeChunks();
+        this.initializePathfinder();
         this.needUpdate = true;
 
         this.showMaze = true;
@@ -35,7 +37,7 @@ class InfiniteMaze {
             this.ctx.translate(chunk.x, chunk.y);
 
             if (chunk.bitmap && this.showMaze) {
-                if(this.cam.zoom > 3) this.ctx.imageSmoothingEnabled = false;
+                if (this.cam.zoom > 3) this.ctx.imageSmoothingEnabled = false;
                 this.ctx.drawImage(chunk.bitmap, 0, 0, chunk.w, chunk.h);
             }
 
@@ -104,14 +106,42 @@ class InfiniteMaze {
             }
         }
     }
-    addChunk({ x, y, w, h, id }) {
-        this.chunks.push({ x, y, w, h, id });
+    initializePathfinder() {
+        this.pathfinder = new Worker("pathfind.js");
+    }
+    pathfind(x1, y1, x2, y2) {
+        this.pathfinder.postMessage({
+            type: "start pathfind",
+            x1,
+            y1,
+            x2,
+            y2
+        });
+    }
+    addChunk({ x, y, w, h, id, mask }) {
+        this.chunks.push({ x, y, w, h, id, mask: BitMask.fromData(mask) });
         this.needUpdate = true;
+        this.pathfinder.postMessage({
+            type: "new chunk",
+            x,
+            y,
+            w,
+            h,
+            id,
+            mask
+        });
     }
     addChunkData(data) {
         let chunk = this.chunks.find(e => e.id == data.id);
+        chunk.maze = BitMask.fromData(data.maze);
         chunk.borderPath = data.borderPath;
         this.needUpdate = true;
+        this.pathfinder.postMessage({
+            type: "add chunk maze",
+            id: data.id,
+            maze: data.maze,
+            mask: data.mask
+        });
     }
     addChunkImage(data) {
         let chunk = this.chunks.find(e => e.id == data.id);

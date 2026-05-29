@@ -21,15 +21,27 @@
 <body>
     <div id="ui-container">
         <script>
+            function init() {
+                try {
+                    initialize()
+                } catch (err) {
+                    window.setTimeout(init, 100);
+                }
+            }
+            // why did i do this
+            // gotta be a better way
+
             fetch("ui.html")
                 .then(response => response.text())
                 .then(data => {
                     document.getElementById("ui-container").innerHTML = data;
+                    init();
                 });
         </script>
     </div>
 
     <canvas id="canvas"></canvas>
+    <canvas id="pathfind-canvas"></canvas>
 </body>
 
 </html>

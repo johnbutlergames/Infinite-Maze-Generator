@@ -1,6 +1,6 @@
 class UIHandler {
-    constructor(canvas, infiniteMaze) {
-        this.canvas = canvas;
+    constructor(canvases, infiniteMaze) {
+        this.canvases = canvases;
         this.infiniteMaze = infiniteMaze;
         this.initDragging();
         this.initPanels();
@@ -36,7 +36,9 @@ class UIHandler {
         // initial ui container width
     }
     drag(width) {
-        this.canvas.style.marginLeft = `${-width / 2}px`;
+        for (let canvas of this.canvases) {
+            canvas.style.marginLeft = `${-width / 2}px`;
+        }
         // move canvas to center display without clearing canvas by changing width
 
         let minWidth = 400;
