@@ -131,11 +131,11 @@ class UIHandler {
         button.onclick = () => {
             if (option.get()) {
                 option.set(false);
-                draw();
+                this.infiniteMaze.needUpdate = true;
                 span.innerHTML = "false";
             } else {
                 option.set(true);
-                draw();
+                this.infiniteMaze.needUpdate = true;
                 span.innerHTML = "true";
             }
         }
@@ -156,7 +156,7 @@ class UIHandler {
             button.innerHTML = o.name;
             button.onclick = () => {
                 o.select();
-                this.scene.draw();
+                this.infiniteMaze.needUpdate = true;
             }
             div.appendChild(button);
         }
