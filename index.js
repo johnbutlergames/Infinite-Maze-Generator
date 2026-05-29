@@ -14,5 +14,4 @@ let ui;
 function initialize() {
     ui = new UIHandler([canvas, pathfindCanvas], infiniteMaze);
     window.setInterval(tick, 10);
-    draw();
 }

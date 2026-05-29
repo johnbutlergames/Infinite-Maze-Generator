@@ -30,10 +30,47 @@ class Pathfinder {
         return false;
     }
     startPathfind({ x1, y1, x2, y2 }) {
-        postMessage({
-            type: "pathfind finished",
-            points: [{ x: x1, y: y1 }, { x: x2, y: y2 }]
-        });
+        // A* implementation
+
+        let SEARCH_LIMIT = 1000000;
+
+        let nodes = [{ x: x1, y: y1, traveled: 0 }];
+        let searched = [];
+        let finished = null;
+        while (searched.length < SEARCH_LIMIT) {
+            nodes.sort((a, b) => {
+                let distA = a.traveled + Math.abs(a.x - x2) + Math.abs(a.y - y2);
+                let distB = b.traveled + Math.abs(b.x - x2) + Math.abs(b.y - y2);
+                return distA - distB;
+            })
+            let node = nodes.shift();
+            if (node.x == x2 && node.y == y2) {
+                finished = node;
+                break;
+            }
+            searched.push(node);
+            let neighbors = [{ x: -1, y: 0 }, { x: 1, y: 0 }, { x: 0, y: -1 }, { x: 0, y: 1 }]
+                .map(e => ({ x: node.x + e.x, y: node.y + e.y, parent: node, traveled: node.traveled + 1 }))
+                .filter(e => !nodes.some(f => f.x == e.x && f.y == e.y))
+                .filter(e => !searched.some(f => f.x == e.x && f.y == e.y))
+                .filter(e => !this.isWall(e.x, e.y))
+            nodes.push(...neighbors);
+        }
+        console.log(nodes.length, searched.length);
+        if (finished) {
+            let points = [];
+            while (finished.parent) {
+                points.unshift({ x: finished.x, y: finished.y });
+                finished = finished.parent;
+            }
+            points.unshift({ x: finished.x, y: finished.y });
+            postMessage({
+                type: "pathfind finished",
+                points
+            });
+        } else {
+
+        }
     }
 }
 
