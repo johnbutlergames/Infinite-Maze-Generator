@@ -13,10 +13,22 @@
     <script src="infinite-maze.js" defer></script>
     <script src="bitmask.js" defer></script>
 
+    <script src="ui.js" defer></script>
+
     <script src="index.js" defer></script>
 </head>
 
 <body>
+    <div id="ui-container">
+        <script>
+            fetch("ui.html")
+                .then(response => response.text())
+                .then(data => {
+                    document.getElementById("ui-container").innerHTML = data;
+                });
+        </script>
+    </div>
+
     <canvas id="canvas"></canvas>
 </body>
 

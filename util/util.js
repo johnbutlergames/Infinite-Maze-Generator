@@ -16,24 +16,6 @@ window.addEventListener("keyup", event => {
     Keys.up[event.key] = true;
 });
 
-window.addEventListener("mousemove", event => {
-    Mouse.x = event.pageX;
-    Mouse.y = event.pageY;
-});
-
-window.addEventListener("mousedown", event => {
-    Mouse.down = true;
-});
-
-window.addEventListener("mouseup", event => {
-    Mouse.down = false;
-});
-
-canvas.addEventListener("wheel", event => {
-    Mouse.scroll += event.deltaY;
-    event.preventDefault();
-});
-
 function pointInRectangle(p, r) {
     if (p.x < r.x) return false;
     if (p.y < r.y) return false;

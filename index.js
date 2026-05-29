@@ -25,6 +25,12 @@ function draw() {
 let cam = new Cam();
 cam.link(canvas, ctx, Mouse);
 let infiniteMaze = new InfiniteMaze(canvas, ctx, cam);
+let ui;
 
-window.setInterval(tick, 10);
-draw();
+function initialize() {
+    ui = new UIHandler(canvas, infiniteMaze);
+    window.setInterval(tick, 10);
+    draw();
+}
+
+window.onload = initialize;

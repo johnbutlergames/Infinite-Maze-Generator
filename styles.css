@@ -1,4 +1,72 @@
+:root {
+    --light1: rgb(255, 255, 255);
+    --light2: rgb(240, 240, 240);
+    --light3: rgb(200, 200, 200);
+    --light4: rgb(170, 170, 170);
+    --dark1: rgb(0, 0, 0);
+    --dark2: rgb(70, 70, 70);
+}
+
 body {
     overflow: hidden;
     margin: 0;
+}
+
+#ui-container {
+    position: absolute;
+    z-index: 1000;
+    right: 0;
+    width: 600px;
+    user-select: none;
+}
+
+#ui-drag-button {
+    position: absolute;
+    width: 10px;
+    padding: 0;
+    height: 100vh;
+    background-color: transparent;
+    border-style: none;
+    cursor: ew-resize;
+}
+
+#ui-drag-button span {
+    font-size: 15px;
+    margin-left: -1px;
+    color: var(--dark2);
+}
+
+#ui-content {
+    background-color: var(--light1);
+    height: 100vh;
+    border-color: var(--light3);
+    border-style: solid;
+    border-width: 0 0 0 10px;
+    overflow: auto;
+}
+
+#panel-controls {
+    height: 30px;
+    background-color: var(--light3);
+    width: 100%;
+    margin-bottom: 3px;
+}
+
+#panel-controls button {
+    background-color: transparent;
+    border: none;
+    cursor: pointer;
+    height: 100%;
+    margin-left: 10px;
+    padding: 0px 10px;
+}
+
+#panel-controls button[selected=true] {
+    background-color: var(--light4);
+    height: calc(100% + 3px);
+    border-radius: 0px 0px 5px 5px;
+}
+
+.panel {
+    padding: 10px;
 }

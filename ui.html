@@ -1,0 +1,23 @@
+<button id="ui-drag-button"><span>⠿</span></button>
+<div id="ui-content">
+    <div id="panel-controls">
+        <button onclick="ui.selectPanel('generate')" selected="true" id="generate-button">Generate</button>
+        <button onclick="ui.selectPanel('edit')" id="edit-button">Edit</button>
+        <button onclick="ui.selectPanel('pathfind')" id="pathfind-button">Pathfind</button>
+        <button onclick="ui.selectPanel('debug')" id="debug-button">Debug</button>
+    </div>
+    <div id="panels">
+        <div id="generate" class="panel">
+        </div>
+        <div id="edit" style="display:none" class="panel">
+        </div>
+        <div id="pathfind" style="display:none" class="panel">
+            <div id="pathfind-options">
+            </div>
+        </div>
+        <div id="debug" style="display:none" class="panel">
+            <div id="debug-options">
+            </div>
+        </div>
+    </div>
+</div>
