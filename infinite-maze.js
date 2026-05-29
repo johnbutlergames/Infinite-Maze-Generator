@@ -7,7 +7,7 @@ class InfiniteMaze {
         this.initializeChunks();
         this.needUpdate = true;
 
-        this.showChunkBorders = true;
+        this.showChunkBorders = false;
         this.showChunkColors = false;
         this.showChunkIds = false;
     }
@@ -34,7 +34,7 @@ class InfiniteMaze {
             this.ctx.translate(chunk.x, chunk.y);
 
             if (chunk.bitmap) {
-                this.ctx.imageSmoothingEnabled = false;
+                if(this.cam.zoom > 3) this.ctx.imageSmoothingEnabled = false;
                 this.ctx.drawImage(chunk.bitmap, 0, 0, chunk.w, chunk.h);
             }
 
