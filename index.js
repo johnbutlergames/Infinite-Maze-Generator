@@ -1,25 +1,9 @@
 function tick() {
-    cam.update();
-    if (cam.moved || infiniteMaze.needUpdate) {
-        update();
-        draw();
-    }
-    if (Keys.down.Shift || Keys.up.Shift) {
-        draw();
-    }
-}
-
-function update() {
-    infiniteMaze.update();
+    infiniteMaze.tick();
     Mouse.update();
     Keys.down = [];
     Keys.up = [];
     cam.moved = false;
-}
-
-function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    infiniteMaze.draw();
 }
 
 let cam = new Cam();
@@ -28,7 +12,7 @@ let infiniteMaze = new InfiniteMaze(canvas, ctx, cam, pathfindCanvas);
 let ui;
 
 function initialize() {
-    ui = new UIHandler([canvas], infiniteMaze);
+    ui = new UIHandler([canvas, pathfindCanvas], infiniteMaze);
     window.setInterval(tick, 10);
     draw();
 }

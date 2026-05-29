@@ -24,13 +24,16 @@ class Pathfinder {
             if (chunk.y > y) continue;
             if (chunk.x + chunk.w <= x) continue;
             if (chunk.y + chunk.h <= y) continue;
-            if (!chunk.mask.get(x - chunk.x, y - chunk.y)) continue;
+            if (!chunk.maze.get(x - chunk.x, y - chunk.y)) continue;
             return true;
         }
         return false;
     }
-    startPathfind(x1, y1, x2, y2) {
-
+    startPathfind({ x1, y1, x2, y2 }) {
+        postMessage({
+            type: "pathfind finished",
+            points: [{ x: x1, y: y1 }, { x: x2, y: y2 }]
+        });
     }
 }
 

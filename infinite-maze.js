@@ -8,11 +8,24 @@ class InfiniteMaze {
         this.initializeChunks();
         this.initializePathfinder();
         this.needUpdate = true;
+        this.needPathUpdate = false;
 
         this.showMaze = true;
         this.showChunkBorders = false;
         this.showChunkColors = false;
         this.showChunkIds = false;
+    }
+    tick() {
+        this.cam.update();
+
+        if (this.needUpdate || this.cam.moved) {
+            this.update();
+            this.draw();
+        }
+
+        if(this.needPathUpdate || this.cam.moved) {
+            this.drawPath();
+        }
     }
     update() {
         this.chunkHandler.postMessage({
@@ -22,8 +35,9 @@ class InfiniteMaze {
         this.needUpdate = false;
     }
     draw() {
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         this.ctx.save();
-        this.cam.alignViewport();
+        this.cam.alignViewport(this.ctx);
 
         for (let chunk of this.chunks) {
             this.ctx.fillStyle = "rgb(230,230,230)";
@@ -82,6 +96,25 @@ class InfiniteMaze {
 
         this.ctx.restore();
     }
+    drawPath() {
+        if (!this.path) return null;
+        let ctx = this.pathfindCanvas.getContext("2d");
+        ctx.clearRect(0, 0, this.pathfindCanvas.width, this.pathfindCanvas.height);
+        ctx.save();
+        this.cam.alignViewport(ctx);
+
+        ctx.strokeStyle = "blue";
+        ctx.lineWidth = 0.5;
+        ctx.lineJoin = "round";
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        for (let node of this.path) {
+            ctx.lineTo(node.x + 0.5, node.y + 0.5);
+        }
+        ctx.stroke();
+
+        ctx.restore();
+    }
     chunkInViewport(chunk) {
         let viewport = this.cam.getViewport();
         if (chunk.x + chunk.w < viewport.x) return false;
@@ -108,6 +141,14 @@ class InfiniteMaze {
     }
     initializePathfinder() {
         this.pathfinder = new Worker("pathfind.js");
+        this.path = null;
+
+        this.pathfinder.onmessage = event => {
+            if (event.data.type == "pathfind finished") {
+                this.path = event.data.points;
+                this.needPathUpdate = true;
+            }
+        }
     }
     pathfind(x1, y1, x2, y2) {
         this.pathfinder.postMessage({

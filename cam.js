@@ -14,10 +14,10 @@ class Cam {
         this.ctx = ctx;
         this.mouse = mouse;
     }
-    alignViewport() {
-        this.ctx.translate(this.canvas.width / 2, this.canvas.height / 2);
-        this.ctx.scale(this.zoom, this.zoom);
-        this.ctx.translate(this.x, this.y);
+    alignViewport(ctx) {
+        ctx.translate(this.canvas.width / 2, this.canvas.height / 2);
+        ctx.scale(this.zoom, this.zoom);
+        ctx.translate(this.x, this.y);
     }
     screenToGlobal(x, y) {
         return {
